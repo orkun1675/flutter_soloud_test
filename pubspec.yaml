@@ -17,6 +17,7 @@ dependencies:
   equatable: ^2.0.7
   logging: ^1.3.0
   rxdart: ^0.28.0
+  google_mobile_ads: ^6.0.0
 
   flutter_soloud: ^3.3.1
 
