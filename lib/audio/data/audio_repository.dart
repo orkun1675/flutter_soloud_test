@@ -11,10 +11,10 @@ import 'package:logging/logging.dart';
 class AudioRepository {
   static final _log = Logger('AudioRepository');
 
-  final Completer<bool> _initCompleter = Completer<bool>();
+  Completer<bool> _initCompleter = Completer<bool>();
   // late final AudioSession _audioSession;
-  final MusicPlayer _musicPlayer = MusicPlayer();
-  final SfxPlayer _sfxPlayer = SfxPlayer();
+  MusicPlayer _musicPlayer = MusicPlayer();
+  SfxPlayer _sfxPlayer = SfxPlayer();
 
   // bool _audioSessionActive = false;
   bool _musicOn = false;
@@ -25,6 +25,10 @@ class AudioRepository {
   }
 
   Future<void> _init() async {
+    _initCompleter = Completer<bool>();
+    _musicPlayer = MusicPlayer();
+    _sfxPlayer = SfxPlayer();
+
     // try {
     //   _audioSession = await AudioSession.instance;
     //   await _audioSession.configure(const AudioSessionConfiguration(
@@ -61,6 +65,13 @@ class AudioRepository {
     await _sfxPlayer.init();
 
     _initCompleter.complete(true);
+  }
+
+  Future<void> reinit() async {
+    await dispose();
+    await Future.delayed(const Duration(milliseconds: 100));
+    _initCompleter = Completer<bool>();
+    await _init();
   }
 
   Future<void> setMusicOn(bool musicOn) async {
@@ -132,5 +143,6 @@ class AudioRepository {
     await _musicPlayer.stop();
     await _sfxPlayer.stop();
     await _sfxPlayer.dispose();
+    SoLoud.instance.deinit();
   }
 }

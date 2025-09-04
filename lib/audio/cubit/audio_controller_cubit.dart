@@ -77,6 +77,18 @@ class AudioControllerCubit extends Cubit<AudioControllerState> {
     }
   }
 
+  Future<void> reinit() async {
+    final prevState = state;
+
+    await setMusicOn(false);
+    await setSoundsOn(false);
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    await _audioRepository.reinit();
+    await setMusicOn(prevState.musicOn);
+    await setSoundsOn(prevState.soundsOn);
+  }
+
   @override
   Future<void> close() async {
     _appLifecycleListener.dispose();

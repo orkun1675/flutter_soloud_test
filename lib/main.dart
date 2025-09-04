@@ -50,10 +50,17 @@ class MyApp extends StatelessWidget {
   }
 }
 
-class _MyHomePage extends StatelessWidget {
+class _MyHomePage extends StatefulWidget {
+  const _MyHomePage();
+
+  @override
+  State<_MyHomePage> createState() => _MyHomePageState();
+}
+
+class _MyHomePageState extends State<_MyHomePage> {
   static final _log = Logger('MyHomePage');
 
-  const _MyHomePage();
+  bool _reinitSoLoudAfterAdView = false;
 
   @override
   Widget build(BuildContext context) {
@@ -98,10 +105,22 @@ class _MyHomePage extends StatelessWidget {
                   context.read<AudioControllerCubit>().playSfx(Sfx.meleeAttack),
               child: const Text('Play Sfx'),
             ),
-            const SizedBox(height: 30),
+            const SizedBox(height: 70),
             ElevatedButton(
               onPressed: _showAd,
               child: const Text('Show Admob Rewarded Ad'),
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Re-init SoLoud after Ad view'),
+                const SizedBox(width: 10),
+                Switch(
+                  value: _reinitSoLoudAfterAdView,
+                  onChanged: (bool value) =>
+                      setState(() => _reinitSoLoudAfterAdView = value),
+                ),
+              ],
             ),
           ],
         ),
@@ -127,9 +146,15 @@ class _MyHomePage extends StatelessWidget {
               );
               ad.dispose();
             },
-            onAdDismissedFullScreenContent: (ad) {
+            onAdDismissedFullScreenContent: (ad) async {
               _log.info('Ad was dismissed.');
               ad.dispose();
+              if (_reinitSoLoudAfterAdView) {
+                await Future.delayed(const Duration(milliseconds: 100));
+                if (!mounted) return;
+                await context.read<AudioControllerCubit>().reinit();
+                _log.info('SoLoud re-initialized.');
+              }
             },
             onAdImpression: (ad) {
               _log.info('Ad recorded an impression.');
