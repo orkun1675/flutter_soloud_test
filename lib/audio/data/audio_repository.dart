@@ -1,22 +1,23 @@
 import 'dart:async';
 
-// import 'package:audio_session/audio_session.dart';
+import 'package:audio_session/audio_session.dart';
 import 'package:flutter_soloud/flutter_soloud.dart';
 import 'package:flutter_soloud_test/audio/data/music_player.dart';
 import 'package:flutter_soloud_test/audio/data/sfx_player.dart';
 import 'package:flutter_soloud_test/audio/model/sfx.dart';
 import 'package:logging/logging.dart';
-// import 'package:synchronized/extension.dart';
+import 'package:synchronized/extension.dart';
 
 class AudioRepository {
+  static const _useAudioSession = true;
+
   static final _log = Logger('AudioRepository');
 
   Completer<bool> _initCompleter = Completer<bool>();
-  // late final AudioSession _audioSession;
+  AudioSession? _audioSession;
   MusicPlayer _musicPlayer = MusicPlayer();
   SfxPlayer _sfxPlayer = SfxPlayer();
 
-  // bool _audioSessionActive = false;
   bool _musicOn = false;
   bool _soundsOn = false;
 
@@ -29,26 +30,36 @@ class AudioRepository {
     _musicPlayer = MusicPlayer();
     _sfxPlayer = SfxPlayer();
 
-    // try {
-    //   _audioSession = await AudioSession.instance;
-    //   await _audioSession.configure(const AudioSessionConfiguration(
-    //     avAudioSessionCategory: AVAudioSessionCategory.ambient,
-    //     avAudioSessionMode: AVAudioSessionMode.defaultMode,
-    //     avAudioSessionSetActiveOptions:
-    //         AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
-    //     androidAudioAttributes: AndroidAudioAttributes(
-    //       contentType: AndroidAudioContentType.sonification,
-    //       flags: AndroidAudioFlags.none,
-    //       usage: AndroidAudioUsage.game,
-    //     ),
-    //     androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
-    //     androidWillPauseWhenDucked: true,
-    //   ));
-    // } catch (error, stacktrace) {
-    //   _log.severe('Error initializing AudioSession.', error, stacktrace);
-    //   _initCompleter.complete(false);
-    //   return;
-    // }
+    if (_useAudioSession) {
+      try {
+        final audioSession = await AudioSession.instance;
+        _audioSession = audioSession;
+        await audioSession.configure(const AudioSessionConfiguration.music());
+        // await audioSession.configure(
+        //   const AudioSessionConfiguration(
+        //     avAudioSessionCategory: AVAudioSessionCategory.ambient,
+        //     avAudioSessionMode: AVAudioSessionMode.defaultMode,
+        //     avAudioSessionSetActiveOptions:
+        //         AVAudioSessionSetActiveOptions.notifyOthersOnDeactivation,
+        //     androidAudioAttributes: AndroidAudioAttributes(
+        //       contentType: AndroidAudioContentType.sonification,
+        //       flags: AndroidAudioFlags.none,
+        //       usage: AndroidAudioUsage.game,
+        //     ),
+        //     androidAudioFocusGainType: AndroidAudioFocusGainType.gain,
+        //     androidWillPauseWhenDucked: true,
+        //   ),
+        // );
+      } catch (error, stacktrace) {
+        _log.severe('Error initializing AudioSession.', error, stacktrace);
+        _initCompleter.complete(false);
+        return;
+      }
+    }
+
+    if (_useAudioSession) {
+      await activateAudioSession(true);
+    }
 
     try {
       await SoLoud.instance.init(
@@ -80,8 +91,6 @@ class AudioRepository {
 
     _musicOn = musicOn;
 
-    // await _activateAudioSession(_musicOn);
-
     if (_musicOn) {
       await _musicPlayer.resume();
     } else {
@@ -109,33 +118,33 @@ class AudioRepository {
       return;
     }
 
-    // await _activateAudioSession(true);
     await _sfxPlayer.play(sfx);
-    // if (!_musicOn) {
-    //   await _activateAudioSession(false);
-    // }
   }
 
-  // Future<void> _activateAudioSession(bool active) async {
-  //   await synchronized(() async {
-  //     if (_audioSessionActive == active) return;
+  Future<void> activateAudioSession(bool active) async {
+    await synchronized(() async {
+      final audioSession = _audioSession;
+      if (audioSession == null) {
+        _log.warning('AudioSession is not initialized.');
+        return;
+      }
 
-  //     try {
-  //       final success = await _audioSession.setActive(active);
-  //       if (!success) {
-  //         _log.warning(
-  //             'Failed ${active ? 'activating' : 'deactivating'} AudioSession.');
-  //       }
-  //     } catch (error, stacktrace) {
-  //       _log.warning(
-  //           'Error ${active ? 'activating' : 'deactivating'} AudioSession.',
-  //           error,
-  //           stacktrace);
-  //     }
-
-  //     _audioSessionActive = active;
-  //   });
-  // }
+      try {
+        final success = await audioSession.setActive(active);
+        if (!success) {
+          _log.warning(
+            'Failed ${active ? 'activating' : 'deactivating'} AudioSession.',
+          );
+        }
+      } catch (error, stacktrace) {
+        _log.warning(
+          'Error ${active ? 'activating' : 'deactivating'} AudioSession.',
+          error,
+          stacktrace,
+        );
+      }
+    });
+  }
 
   Future<void> dispose() async {
     if (!(await _initCompleter.future)) return;

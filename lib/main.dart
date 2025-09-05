@@ -13,7 +13,7 @@ final Completer<void> _mobileAdsInitialized = Completer<void>();
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
 
-  Logger.root.level = Level.FINE;
+  Logger.root.level = Level.ALL;
   Logger.root.onRecord.listen((record) {
     dev.log(
       record.message,
@@ -57,10 +57,12 @@ class _MyHomePage extends StatefulWidget {
   State<_MyHomePage> createState() => _MyHomePageState();
 }
 
+enum AudioBugWorkaround { none, reInitSoLoud, resetAudioSession }
+
 class _MyHomePageState extends State<_MyHomePage> {
   static final _log = Logger('MyHomePage');
 
-  bool _reinitSoLoudAfterAdView = false;
+  AudioBugWorkaround _audioHandling = AudioBugWorkaround.none;
 
   @override
   Widget build(BuildContext context) {
@@ -116,9 +118,27 @@ class _MyHomePageState extends State<_MyHomePage> {
                 const Text('Re-init SoLoud after Ad view'),
                 const SizedBox(width: 10),
                 Switch(
-                  value: _reinitSoLoudAfterAdView,
-                  onChanged: (bool value) =>
-                      setState(() => _reinitSoLoudAfterAdView = value),
+                  value: _audioHandling == AudioBugWorkaround.reInitSoLoud,
+                  onChanged: (bool value) => setState(
+                    () => _audioHandling = value
+                        ? AudioBugWorkaround.reInitSoLoud
+                        : AudioBugWorkaround.none,
+                  ),
+                ),
+              ],
+            ),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Text('Reset Audio Session after Ad view'),
+                const SizedBox(width: 10),
+                Switch(
+                  value: _audioHandling == AudioBugWorkaround.resetAudioSession,
+                  onChanged: (bool value) => setState(
+                    () => _audioHandling = value
+                        ? AudioBugWorkaround.resetAudioSession
+                        : AudioBugWorkaround.none,
+                  ),
                 ),
               ],
             ),
@@ -130,11 +150,12 @@ class _MyHomePageState extends State<_MyHomePage> {
 
   Future<void> _showAd() async {
     await _mobileAdsInitialized.future;
+
     await RewardedAd.load(
       adUnitId: "ca-app-pub-3940256099942544/1712485313",
       request: const AdRequest(),
       rewardedAdLoadCallback: RewardedAdLoadCallback(
-        onAdLoaded: (RewardedAd ad) {
+        onAdLoaded: (RewardedAd ad) async {
           _log.info('Ad was loaded.');
           ad.fullScreenContentCallback = FullScreenContentCallback(
             onAdShowedFullScreenContent: (ad) {
@@ -149,11 +170,23 @@ class _MyHomePageState extends State<_MyHomePage> {
             onAdDismissedFullScreenContent: (ad) async {
               _log.info('Ad was dismissed.');
               ad.dispose();
-              if (_reinitSoLoudAfterAdView) {
-                await Future.delayed(const Duration(milliseconds: 100));
-                if (!mounted) return;
-                await context.read<AudioControllerCubit>().reinit();
-                _log.info('SoLoud re-initialized.');
+              switch (_audioHandling) {
+                case AudioBugWorkaround.none:
+                  break;
+                case AudioBugWorkaround.reInitSoLoud:
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (!mounted) return;
+                  await context.read<AudioControllerCubit>().reinit();
+                  _log.info('SoLoud re-initialized.');
+                  break;
+                case AudioBugWorkaround.resetAudioSession:
+                  await Future.delayed(const Duration(milliseconds: 100));
+                  if (!mounted) return;
+                  await context
+                      .read<AudioControllerCubit>()
+                      .resumeAudioSession();
+                  _log.info('Audio session resumed.');
+                  break;
               }
             },
             onAdImpression: (ad) {
@@ -163,6 +196,12 @@ class _MyHomePageState extends State<_MyHomePage> {
               _log.info('Ad was clicked.');
             },
           );
+
+          if (_audioHandling == AudioBugWorkaround.resetAudioSession) {
+            await context.read<AudioControllerCubit>().stopAudioSession();
+            _log.info('Audio session stopped.');
+          }
+
           ad.show(
             onUserEarnedReward: (AdWithoutView ad, RewardItem rewardItem) {
               _log.info('Reward amount: ${rewardItem.amount}');

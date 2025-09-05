@@ -18,6 +18,8 @@ dependencies:
   logging: ^1.3.0
   rxdart: ^0.28.0
   google_mobile_ads: ^6.0.0
+  audio_session: ^0.2.2
+  synchronized: ^3.4.0
 
   flutter_soloud: ^3.3.1
 
